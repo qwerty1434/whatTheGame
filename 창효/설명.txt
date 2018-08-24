@@ -1,0 +1,2 @@
+1.id_activity 만들 때 label도 같이 붙였습니다
+2.flatten함수 만들어서 가중치(weight)와 값을 곱해 주차(wk)별로 하나의 값이 나오도록 만들었습니다
