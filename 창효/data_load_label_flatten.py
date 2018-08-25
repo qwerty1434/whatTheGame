@@ -141,7 +141,7 @@ def Flatten(id_summary):
         df = pd.concat([final_value,wk],axis = 1)
         df.columns = [v,'wk']
         
-        nan = float('Nan') #플레이 안했음을 뭐로 표현할지 (0으로 해도 상관없음)
+        nan = float('Nan') #플레이 안했음을 뭐로 표현할지 (0으로 해도 상관없음) //-값을 줘도 괜찮을듯
         Non_play_dataframe = DataFrame(columns =[v,'wk'],data = [[nan,1],[nan,2],[nan,3],[nan,4],[nan,5],[nan,6],[nan,7],[nan,8]])
 
 
@@ -159,3 +159,81 @@ def Flatten(id_summary):
 data = Flatten(id_summary)
 
 
+###데이터 살펴보기
+retain = data[data['label'] == 'retained']
+not_retain = data[~(data['label'] == 'retained')]
+week = data[data['label'] == 'week']
+month = data[data['label'] == 'month']
+two_month = data[data['label'] == '2month']
+
+###분류모델
+from sklearn.model_selection import train_test_split
+#일단은 Nan을 0으로
+data = data.replace([float('Nan')],[0])
+X = data.drop('label',axis = 1)
+Y = data['label']
+X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.3)
+
+#fit&predict
+from sklearn.naive_bayes import GaussianNB
+gnb = GaussianNB()
+
+gnb.fit(X_train, y_train)
+pred = gnb.predict(X_test)
+#결과
+from sklearn.metrics import confusion_matrix
+result = confusion_matrix(y_test,pred)
+score = (result[0,0]+result[1,1]+result[2,2]+result[3,3])/sum(sum(result))
+
+
+
+
+
+
+
+
+##loss function 짜보기
+def Flatten(id_summary,weight_value):
+    data = DataFrame()
+    for _,v in enumerate(id_summary):
+        ex = id_summary[v] #데이터
+        value = ex.drop(['label','wk'],axis = 1) #값
+        weight = np.transpose(DataFrame(index= ['Weight'],
+                                columns = ex[ex['wk'] == 1].drop(['label','wk'],axis = 1).columns,
+                                data = weight_value)) #가중치 바꾸고 싶으면 여기 값 변경
+        final_value = DataFrame(np.matmul(value,weight)) #매트릭스 곱셈
+        wk = ex['wk']
+        df = pd.concat([final_value,wk],axis = 1)
+        df.columns = [v,'wk']
+        
+        nan = float('Nan') #플레이 안했음을 뭐로 표현할지 (0으로 해도 상관없음) //-값을 줘도 괜찮을듯
+        Non_play_dataframe = DataFrame(columns =[v,'wk'],data = [[nan,1],[nan,2],[nan,3],[nan,4],[nan,5],[nan,6],[nan,7],[nan,8]])
+
+
+        final_df = pd.concat([df,Non_play_dataframe[-Non_play_dataframe['wk'].isin(df['wk'])]])#없는 wk 는 NA값으로 넣기
+        final_df = final_df.sort_values(by =['wk']).reset_index(drop = True) #순서정렬
+        final_df = np.transpose(final_df) #행렬 전치
+        
+        final_df[8] = [ex['label'][0],'label'] #맨 끝에 라벨 붙이기
+        final_df.columns = final_df.iloc[1,:] #wk값을 column이름으로 바꾸기
+        final_df = final_df.drop('wk') #wk행 삭제
+        data = data.append(final_df)
+    return data
+
+def loss_function(weight_value):
+    data = Flatten(id_summary,weight_value)
+    data = data.replace([float('Nan')],[0])
+    X = data.drop('label',axis = 1)
+    Y = data['label']
+    X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=0.3,random_state = 42)
+    gnb = GaussianNB()
+    gnb.fit(X_train, y_train)
+    pred = gnb.predict(X_test)
+    result = confusion_matrix(y_test,pred)
+    score = (result[0,0]+result[1,1]+result[2,2]+result[3,3])/sum(sum(result))
+    return 1-score
+
+1.loss_function을 미분해서 최솟값을 찾는다 ->1차함수라서 안될 거 같다
+2.강화학습으로 최적의 acc가 나올 때 까지x1,x2,...,x7의 값을 변화시킨다
+    7개의 변수를 어떻게 세팅하느냐에 따라 다른 return값을 준다
+    해당 return값이 최소가 되도록 하는 변수를 찾아나가자
